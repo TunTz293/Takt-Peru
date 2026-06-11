@@ -141,6 +141,40 @@ main {
   opacity: 0.65;
 }
 
+/* ---------- Skills ---------- */
+#skills-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 0.7rem;
+  max-width: 560px;
+}
+
+.skill-chip {
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--azul-suave);
+  border-radius: 999px;
+  color: var(--azul);
+  opacity: 0.8;
+  cursor: default;
+}
+
+.skill-chip.ia-on {
+  background: rgba(46, 201, 255, 0.15);
+  border-color: var(--azul);
+  box-shadow: 0 0 8px var(--azul-suave);
+  opacity: 1;
+}
+
+.skill-chip.ia-off {
+  border-style: dashed;
+  opacity: 0.45;
+}
+
 /* ---------- Chat ---------- */
 #chat {
   flex: 1;

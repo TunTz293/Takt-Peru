@@ -1,6 +1,8 @@
 /* ============================================================
    J.A.R.V.I.S. — Asistente personal de voz en español
-   Comandos integrados + modo IA opcional (API de Claude)
+   Conectado a Claude (API de Anthropic) con skills (tool use).
+   Las skills están definidas en skills.js y también funcionan
+   sin clave API mediante comandos de voz directos.
    ============================================================ */
 
 const $ = (sel) => document.querySelector(sel);
@@ -23,8 +25,6 @@ const cfg = {
   set apiKey(v) { localStorage.setItem("jarvis_apikey", v); },
   get voz() { return localStorage.getItem("jarvis_voz") || ""; },
   set voz(v) { localStorage.setItem("jarvis_voz", v); },
-  get recordatorios() { return JSON.parse(localStorage.getItem("jarvis_recordatorios") || "[]"); },
-  set recordatorios(v) { localStorage.setItem("jarvis_recordatorios", JSON.stringify(v)); },
 };
 
 // Forma de dirigirse al usuario: "señor Warcaya", "jefe", o solo el nombre
@@ -45,6 +45,25 @@ function agregarMensaje(texto, quien) {
   div.textContent = texto;
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
+}
+
+function pintarSkills() {
+  const barra = $("#skills-bar");
+  barra.innerHTML = "";
+  for (const s of SKILLS) {
+    const chip = document.createElement("span");
+    chip.className = "skill-chip";
+    chip.textContent = s.etiqueta;
+    chip.title = s.description;
+    barra.appendChild(chip);
+  }
+  const ia = document.createElement("span");
+  ia.className = "skill-chip " + (cfg.apiKey ? "ia-on" : "ia-off");
+  ia.textContent = cfg.apiKey ? "IA Claude ✓" : "IA Claude (sin clave)";
+  ia.title = cfg.apiKey
+    ? "Conectado a Claude: puede razonar y usar todas las skills por sí mismo"
+    : "Configura tu clave API (⚙) para conectar Jarvis a Claude";
+  barra.appendChild(ia);
 }
 
 // ---------- Voz (síntesis) ----------
@@ -81,6 +100,8 @@ function responder(texto) {
   agregarMensaje(texto, "jarvis");
   hablar(texto);
 }
+// Permite que las skills (p. ej. el temporizador) hablen por Jarvis
+window.jarvisResponder = responder;
 
 // ---------- Voz (reconocimiento) ----------
 const Reconocedor = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -142,14 +163,14 @@ function procesarEntrada(texto) {
     const nombre = texto.replace(/^(me llamo|soy|mi nombre es)\s+/i, "").trim();
     cfg.nombre = nombre.charAt(0).toUpperCase() + nombre.slice(1);
     esperandoNombre = false;
-    responder(`Un placer, ${tratamiento()}. Sistemas configurados a tu servicio. Di «ayuda» cuando quieras ver lo que puedo hacer.`);
+    responder(`Un placer, ${tratamiento()}. Sistemas y skills cargados a tu servicio. Di «ayuda» cuando quieras ver lo que puedo hacer.`);
     return;
   }
 
   manejarComando(texto);
 }
 
-// ---------- Comandos integrados ----------
+// ---------- Comandos de personalidad + enrutado a skills ----------
 const CHISTES = [
   "¿Qué le dice un bit a otro bit? Nos vemos en el bus.",
   "Hay 10 tipos de personas: las que entienden binario y las que no.",
@@ -157,106 +178,75 @@ const CHISTES = [
   "¿Por qué los programadores confunden Halloween con Navidad? Porque OCT 31 es igual a DEC 25.",
 ];
 
-function manejarComando(texto) {
+async function manejarComando(texto) {
   const t = texto.toLowerCase();
 
-  // Saludos
-  if (/\b(hola|buenos días|buenas tardes|buenas noches|qué tal)\b/.test(t)) {
+  // --- Personalidad (respuestas instantáneas, sin IA) ---
+  if (/^\s*(hola|buenos días|buenas tardes|buenas noches|qué tal|que tal)\b/.test(t)) {
     return responder(`${saludoPorHora()}, ${tratamiento()}. ¿En qué puedo ayudarte?`);
   }
-
-  // Identidad
   if (/(quién eres|quien eres|cómo te llamas|como te llamas|qué eres)/.test(t)) {
-    return responder(`Soy JARVIS, tu asistente personal, ${tratamiento()}. Estoy programado exclusivamente para servirte.`);
+    return responder(`Soy JARVIS, tu asistente personal conectado a Claude, ${tratamiento()}. Estoy programado exclusivamente para servirte.`);
   }
-
-  // Hora y fecha
-  if (/\b(hora)\b/.test(t)) {
-    const h = new Date().toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" });
-    return responder(`Son las ${h}, ${tratamiento()}.`);
-  }
-  if (/\b(fecha|día es hoy|dia es hoy|qué día|que dia)\b/.test(t)) {
-    const f = new Date().toLocaleDateString("es-PE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-    return responder(`Hoy es ${f}.`);
-  }
-
-  // Búsquedas y sitios
-  let m;
-  if ((m = t.match(/busca(?:r)?(?: en google)?\s+(.+)/))) {
-    window.open("https://www.google.com/search?q=" + encodeURIComponent(m[1]), "_blank");
-    return responder(`Buscando «${m[1]}» en Google, ${tratamiento()}.`);
-  }
-  if ((m = t.match(/(?:pon|reproduce|busca en youtube)\s+(.+)/))) {
-    window.open("https://www.youtube.com/results?search_query=" + encodeURIComponent(m[1]), "_blank");
-    return responder(`Buscando «${m[1]}» en YouTube.`);
-  }
-  if (/abre youtube/.test(t)) { window.open("https://youtube.com", "_blank"); return responder("Abriendo YouTube."); }
-  if (/abre google/.test(t)) { window.open("https://google.com", "_blank"); return responder("Abriendo Google."); }
-  if ((m = t.match(/wikipedia\s+(?:de\s+|sobre\s+)?(.+)/))) {
-    window.open("https://es.wikipedia.org/wiki/Special:Search?search=" + encodeURIComponent(m[1]), "_blank");
-    return responder(`Consultando Wikipedia sobre «${m[1]}».`);
-  }
-
-  // Recordatorios
-  if ((m = texto.match(/(?:recuérdame|recuerdame|recordatorio|anota|apunta)\s+(?:que\s+)?(.+)/i))) {
-    const lista = cfg.recordatorios;
-    lista.push({ texto: m[1], fecha: new Date().toLocaleString("es-PE") });
-    cfg.recordatorios = lista;
-    return responder(`Anotado, ${tratamiento()}: «${m[1]}».`);
-  }
-  if (/(mis recordatorios|qué anotaste|que anotaste|mis notas)/.test(t)) {
-    const lista = cfg.recordatorios;
-    if (!lista.length) return responder("No tienes recordatorios pendientes.");
-    const detalle = lista.map((r, i) => `${i + 1}. ${r.texto} (${r.fecha})`).join("\n");
-    return responder(`Tienes ${lista.length} recordatorio(s):\n${detalle}`);
-  }
-  if (/(borra|elimina|limpia).*(recordatorios|notas)/.test(t)) {
-    cfg.recordatorios = [];
-    return responder("Recordatorios eliminados.");
-  }
-
-  // Humor
   if (/(chiste|hazme reír|hazme reir|algo gracioso)/.test(t)) {
     return responder(CHISTES[Math.floor(Math.random() * CHISTES.length)]);
   }
-
-  // Utilidades
   if (/(limpia|borra).*(chat|pantalla|conversación|conversacion)/.test(t)) {
     chat.innerHTML = "";
     historia.length = 0;
     return responder("Pantalla despejada.");
   }
-  if ((m = texto.match(/(?:llámame|llamame|mi nombre es|cambia mi nombre a)\s+(.+)/i))) {
+  let m;
+  if ((m = texto.match(/(?:llámame|llamame|cambia mi nombre a)\s+(.+)/i))) {
     cfg.nombre = m[1].trim();
     return responder(`Entendido. A partir de ahora te llamaré ${tratamiento()}.`);
   }
-  if (/(gracias|te pasaste|buen trabajo)/.test(t)) {
+  if (/^(gracias|te pasaste|buen trabajo)/.test(t)) {
     return responder(`Siempre a tu servicio, ${tratamiento()}.`);
   }
   if (/(adiós|adios|hasta luego|apágate|apagate|descansa)/.test(t)) {
     return responder(`Hasta pronto, ${tratamiento()}. Estaré aquí cuando me necesites.`);
   }
-
-  // Ayuda
-  if (/\b(ayuda|qué puedes hacer|que puedes hacer|comandos)\b/.test(t)) {
+  if (/\b(ayuda|qué puedes hacer|que puedes hacer|comandos|skills)\b/.test(t)) {
     return responder(
-      "Puedo ayudarte con:\n" +
-      "• «¿Qué hora es?» / «¿Qué día es hoy?»\n" +
-      "• «Busca [algo]» — búsqueda en Google\n" +
-      "• «Pon [canción]» / «Abre YouTube»\n" +
-      "• «Wikipedia sobre [tema]»\n" +
-      "• «Recuérdame [algo]» / «Mis recordatorios»\n" +
-      "• «Cuéntame un chiste»\n" +
-      "• «Llámame [nombre]» / «Limpia el chat»\n" +
+      "Mis skills disponibles:\n" +
+      "• Hora y fecha — «¿qué hora es?»\n" +
+      "• Clima real — «clima en Lima»\n" +
+      "• Calculadora — «cuánto es 150 * 1.18»\n" +
+      "• Monedas — «convierte 100 dólares a soles»\n" +
+      "• Temporizador — «temporizador de 5 minutos»\n" +
+      "• Recordatorios — «recuérdame…» / «mis recordatorios»\n" +
+      "• Web — «busca…», «pon [canción]», «wikipedia sobre…»\n" +
+      "• Chistes, «llámame [nombre]», «limpia el chat»\n" +
       (cfg.apiKey
-        ? "• Y cualquier otra pregunta: la responderé con mi módulo de IA."
-        : "• Configura una clave API de Claude (⚙) y podré responder cualquier pregunta.")
+        ? "Además estoy conectado a Claude: pregúntame lo que sea y decidiré yo mismo qué skill usar."
+        : "Conéctame a Claude con tu clave API (⚙) y podré razonar y combinar estas skills por mi cuenta.")
     );
   }
 
-  // Sin coincidencia → modo IA o mensaje por defecto
+  // --- Conectado a Claude: él decide qué skill usar ---
   if (cfg.apiKey) return preguntarIA(texto);
-  responder(`No tengo ese comando en mis protocolos, ${tratamiento()}. Di «ayuda» para ver lo que puedo hacer, o activa el modo IA en configuración (⚙).`);
+
+  // --- Sin clave: intento resolver con los patrones locales de las skills ---
+  const local = skillLocal(texto);
+  if (local) {
+    setEstado("thinking", "Ejecutando skill");
+    try {
+      const resultado = await ejecutarSkill(local.skill.name, local.input);
+      setEstado("idle", "En espera");
+      return responder(resultado);
+    } catch (e) {
+      setEstado("idle", "En espera");
+      return responder(`La skill «${local.skill.etiqueta}» reportó un problema: ${e.message}.`);
+    }
+  }
+
+  // Hora/fecha sin IA (la skill no tiene patrón porque Claude la cubre)
+  if (/\b(hora|fecha|qué día|que dia|día es hoy|dia es hoy)\b/.test(t)) {
+    return responder(await ejecutarSkill("hora_fecha", {}));
+  }
+
+  responder(`No tengo ese comando en mis protocolos, ${tratamiento()}. Di «ayuda» para ver mis skills, o conéctame a Claude en configuración (⚙) para que pueda responder cualquier cosa.`);
 }
 
 function saludoPorHora() {
@@ -266,61 +256,103 @@ function saludoPorHora() {
   return "Buenas noches";
 }
 
-// ---------- Modo IA (API de Claude) ----------
-const historia = [];
+// ---------- Conexión a Claude con tool use (skills) ----------
+const historia = []; // memoria de conversación entre turnos (solo texto)
+const MAX_VUELTAS = 8; // límite del bucle agéntico
+
+function promptSistema() {
+  return (
+    `Eres JARVIS, el asistente personal de ${cfg.nombre || "tu usuario"}. ` +
+    `Dirígete siempre a él/ella como «${tratamiento()}», con el tono elegante, leal y ` +
+    `ligeramente irónico del JARVIS de Iron Man. Responde siempre en español. ` +
+    `Tienes skills (herramientas) reales: clima, calculadora, conversor de monedas, ` +
+    `temporizador, recordatorios, hora/fecha y apertura de webs. Úsalas siempre que la ` +
+    `pregunta lo requiera en lugar de estimar de memoria (p. ej. usa obtener_clima para el ` +
+    `clima real, calculadora para aritmética, hora_fecha para la hora actual). ` +
+    `Tus respuestas se leen en voz alta: sé breve (2 a 4 frases), claro y sin formato markdown.`
+  );
+}
+
+async function llamarClaude(messages) {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": cfg.apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
+    body: JSON.stringify({
+      model: "claude-opus-4-8",
+      max_tokens: 16000,
+      thinking: { type: "adaptive" },
+      system: promptSistema(),
+      tools: HERRAMIENTAS_CLAUDE,
+      messages,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Error ${res.status}`);
+  }
+  return res.json();
+}
 
 async function preguntarIA(texto) {
   setEstado("thinking", "Procesando");
   historia.push({ role: "user", content: texto });
 
+  // Copia de trabajo del turno: aquí van los bloques completos
+  // (thinking/tool_use) que la API exige reenviar intactos.
+  const messages = historia.slice(-16);
+
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": cfg.apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
-      body: JSON.stringify({
-        model: "claude-opus-4-8",
-        max_tokens: 16000,
-        thinking: { type: "adaptive" },
-        system:
-          `Eres JARVIS, el asistente personal de ${cfg.nombre || "tu usuario"}. ` +
-          `Dirígete siempre a él/ella como «${tratamiento()}», con el tono elegante, leal y ` +
-          `ligeramente irónico del JARVIS de Iron Man. Responde siempre en español. ` +
-          `Tus respuestas se leen en voz alta: sé breve (2 a 4 frases), claro y sin formato markdown.`,
-        messages: historia.slice(-12),
-      }),
-    });
+    for (let vuelta = 0; vuelta < MAX_VUELTAS; vuelta++) {
+      const data = await llamarClaude(messages);
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err?.error?.message || `Error ${res.status}`);
-    }
+      if (data.stop_reason === "refusal") {
+        historia.pop();
+        setEstado("idle", "En espera");
+        return responder("Lo siento, no puedo ayudarte con esa solicitud.");
+      }
 
-    const data = await res.json();
+      // Reenviar el contenido completo preserva los bloques thinking/tool_use
+      messages.push({ role: "assistant", content: data.content });
 
-    if (data.stop_reason === "refusal") {
-      historia.pop();
+      if (data.stop_reason === "tool_use") {
+        const resultados = [];
+        for (const bloque of data.content) {
+          if (bloque.type !== "tool_use") continue;
+          setEstado("thinking", `Skill: ${bloque.name}`);
+          try {
+            const salida = await ejecutarSkill(bloque.name, bloque.input);
+            resultados.push({ type: "tool_result", tool_use_id: bloque.id, content: salida });
+          } catch (e) {
+            resultados.push({ type: "tool_result", tool_use_id: bloque.id, content: `Error: ${e.message}`, is_error: true });
+          }
+        }
+        messages.push({ role: "user", content: resultados });
+        continue;
+      }
+
+      // Respuesta final
+      const respuesta = data.content
+        .filter((b) => b.type === "text")
+        .map((b) => b.text)
+        .join("\n")
+        .trim();
+
+      historia.push({ role: "assistant", content: respuesta || "(sin texto)" });
       setEstado("idle", "En espera");
-      return responder("Lo siento, no puedo ayudarte con esa solicitud.");
+      return responder(respuesta || "Tarea completada.");
     }
 
-    const respuesta = data.content
-      .filter((b) => b.type === "text")
-      .map((b) => b.text)
-      .join("\n")
-      .trim();
-
-    historia.push({ role: "assistant", content: respuesta });
     setEstado("idle", "En espera");
-    responder(respuesta || "No obtuve respuesta del módulo de IA.");
+    responder("La tarea requirió demasiados pasos y la detuve por seguridad. Intenta dividirla en partes.");
   } catch (e) {
     historia.pop();
     setEstado("idle", "En espera");
-    responder(`Hubo un problema con el módulo de IA, ${tratamiento()}: ${e.message}. Revisa la clave API en configuración.`);
+    responder(`Hubo un problema con mi conexión a Claude, ${tratamiento()}: ${e.message}. Revisa la clave API en configuración.`);
   }
 }
 
@@ -339,18 +371,20 @@ $("#cfg-guardar").addEventListener("click", () => {
   cfg.apiKey = $("#cfg-apikey").value.trim();
   cfg.voz = $("#cfg-voz").value;
   esperandoNombre = !cfg.nombre;
+  pintarSkills();
   dlgConfig.close();
-  responder(`Configuración actualizada, ${tratamiento()}.`);
+  responder(`Configuración actualizada, ${tratamiento()}.${cfg.apiKey ? " Conexión a Claude activa." : ""}`);
 });
 
 $("#cfg-cerrar").addEventListener("click", () => dlgConfig.close());
 
 // ---------- Arranque ----------
 window.addEventListener("load", () => {
+  pintarSkills();
   if (esperandoNombre) {
     agregarMensaje("Sistemas en línea. Soy JARVIS, tu asistente personal. Antes de empezar: ¿cómo debo llamarte?", "jarvis");
   } else {
-    agregarMensaje(`${saludoPorHora()}, ${tratamiento()}. Todos los sistemas operativos. ¿En qué puedo servirte?`, "jarvis");
+    agregarMensaje(`${saludoPorHora()}, ${tratamiento()}. Skills cargadas y sistemas operativos. ¿En qué puedo servirte?`, "jarvis");
   }
   // La síntesis de voz requiere interacción previa del usuario en la mayoría
   // de navegadores, por eso el saludo inicial solo se muestra en pantalla.
