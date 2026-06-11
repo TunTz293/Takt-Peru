@@ -1,0 +1,278 @@
+:root {
+  --azul: #2ec9ff;
+  --azul-suave: rgba(46, 201, 255, 0.35);
+  --fondo: #050b14;
+  --panel: rgba(10, 25, 45, 0.75);
+  --texto: #d9f3ff;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: radial-gradient(ellipse at center, #0a1a2f 0%, var(--fondo) 70%);
+  color: var(--texto);
+  font-family: "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-x: hidden;
+}
+
+.scanlines {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 3px,
+    rgba(46, 201, 255, 0.02) 4px
+  );
+  z-index: 10;
+}
+
+header {
+  text-align: center;
+  padding: 1.2rem 1rem 0.4rem;
+  position: relative;
+  width: 100%;
+  max-width: 720px;
+}
+
+h1 {
+  font-size: 2rem;
+  letter-spacing: 0.5em;
+  color: var(--azul);
+  text-shadow: 0 0 18px var(--azul-suave);
+  font-weight: 300;
+}
+
+.subtitle {
+  font-size: 0.7rem;
+  letter-spacing: 0.25em;
+  opacity: 0.55;
+  text-transform: uppercase;
+  margin-top: 0.3rem;
+}
+
+#btn-config {
+  position: absolute;
+  right: 0.8rem;
+  top: 1.2rem;
+  background: none;
+  border: 1px solid var(--azul-suave);
+  color: var(--azul);
+  font-size: 1.1rem;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: box-shadow 0.2s;
+}
+#btn-config:hover { box-shadow: 0 0 12px var(--azul-suave); }
+
+main {
+  width: 100%;
+  max-width: 720px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0 1rem 1rem;
+}
+
+/* ---------- Reactor ---------- */
+.reactor-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem 0;
+}
+
+.reactor {
+  position: relative;
+  width: 130px;
+  height: 130px;
+}
+
+.ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--azul-suave);
+}
+.ring-1 { animation: girar 9s linear infinite; border-style: dashed; }
+.ring-2 { inset: 14px; animation: girar 6s linear infinite reverse; border-style: dotted; }
+.ring-3 { inset: 28px; animation: girar 4s linear infinite; }
+
+.core {
+  position: absolute;
+  inset: 44px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffffff 0%, var(--azul) 45%, transparent 75%);
+  box-shadow: 0 0 28px var(--azul);
+  transition: box-shadow 0.3s, transform 0.3s;
+}
+
+.reactor.listening .core {
+  animation: pulso 0.9s ease-in-out infinite;
+  box-shadow: 0 0 48px var(--azul), 0 0 90px var(--azul-suave);
+}
+.reactor.speaking .core {
+  animation: pulso 0.45s ease-in-out infinite;
+}
+.reactor.thinking .ring { border-color: #ffd166; }
+.reactor.thinking .core {
+  background: radial-gradient(circle, #fff 0%, #ffd166 45%, transparent 75%);
+  box-shadow: 0 0 38px #ffd166;
+}
+
+@keyframes girar { to { transform: rotate(360deg); } }
+@keyframes pulso {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+}
+
+#estado {
+  margin-top: 0.6rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+/* ---------- Chat ---------- */
+#chat {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.8rem 0.2rem;
+  min-height: 200px;
+  max-height: 45vh;
+}
+
+.msg {
+  max-width: 85%;
+  padding: 0.6rem 0.9rem;
+  border-radius: 10px;
+  line-height: 1.45;
+  font-size: 0.95rem;
+  white-space: pre-wrap;
+  animation: aparecer 0.25s ease;
+}
+
+.msg.jarvis {
+  align-self: flex-start;
+  background: var(--panel);
+  border-left: 2px solid var(--azul);
+}
+
+.msg.usuario {
+  align-self: flex-end;
+  background: rgba(46, 201, 255, 0.12);
+  border-right: 2px solid var(--azul);
+}
+
+@keyframes aparecer {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---------- Controles ---------- */
+footer {
+  display: flex;
+  gap: 0.5rem;
+  padding-top: 0.6rem;
+}
+
+#entrada {
+  flex: 1;
+  background: var(--panel);
+  border: 1px solid var(--azul-suave);
+  border-radius: 24px;
+  padding: 0.7rem 1.1rem;
+  color: var(--texto);
+  font-size: 1rem;
+  outline: none;
+}
+#entrada:focus { box-shadow: 0 0 10px var(--azul-suave); }
+
+#btn-mic, #btn-enviar {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  border: 1px solid var(--azul-suave);
+  background: var(--panel);
+  color: var(--azul);
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: box-shadow 0.2s, background 0.2s;
+}
+#btn-mic:hover, #btn-enviar:hover { box-shadow: 0 0 14px var(--azul-suave); }
+#btn-mic.activo {
+  background: var(--azul);
+  color: #03141f;
+  box-shadow: 0 0 22px var(--azul);
+}
+
+/* ---------- Configuración ---------- */
+dialog#config {
+  background: #07131f;
+  color: var(--texto);
+  border: 1px solid var(--azul-suave);
+  border-radius: 12px;
+  padding: 1.5rem;
+  width: min(420px, 92vw);
+}
+dialog#config::backdrop { background: rgba(0, 0, 0, 0.7); }
+
+#config h2 {
+  color: var(--azul);
+  font-weight: 300;
+  letter-spacing: 0.15em;
+  margin-bottom: 1rem;
+}
+
+#config label {
+  display: block;
+  font-size: 0.85rem;
+  margin-bottom: 0.9rem;
+  opacity: 0.9;
+}
+
+#config input, #config select {
+  display: block;
+  width: 100%;
+  margin-top: 0.3rem;
+  padding: 0.55rem 0.7rem;
+  background: var(--panel);
+  border: 1px solid var(--azul-suave);
+  border-radius: 8px;
+  color: var(--texto);
+  font-size: 0.95rem;
+}
+
+#config .nota {
+  font-size: 0.75rem;
+  opacity: 0.6;
+  margin-bottom: 1rem;
+  line-height: 1.4;
+}
+
+#config .acciones {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: flex-end;
+}
+
+#config .acciones button {
+  padding: 0.5rem 1.2rem;
+  border-radius: 8px;
+  border: 1px solid var(--azul-suave);
+  background: var(--panel);
+  color: var(--azul);
+  cursor: pointer;
+}
+#cfg-guardar { background: var(--azul) !important; color: #03141f !important; }

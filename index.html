@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>J.A.R.V.I.S. — Asistente Personal</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="scanlines"></div>
+
+  <header>
+    <h1>J.A.R.V.I.S.</h1>
+    <p class="subtitle">Just A Rather Very Intelligent System</p>
+    <button id="btn-config" title="Configuración">⚙</button>
+  </header>
+
+  <main>
+    <!-- Núcleo / Reactor -->
+    <div class="reactor-container">
+      <div id="reactor" class="reactor idle">
+        <div class="ring ring-1"></div>
+        <div class="ring ring-2"></div>
+        <div class="ring ring-3"></div>
+        <div class="core"></div>
+      </div>
+      <p id="estado">En espera</p>
+    </div>
+
+    <!-- Conversación -->
+    <section id="chat" aria-live="polite"></section>
+
+    <!-- Controles -->
+    <footer>
+      <button id="btn-mic" title="Hablar con Jarvis">🎤</button>
+      <input id="entrada" type="text" placeholder="Escribe una orden o pregunta…" autocomplete="off">
+      <button id="btn-enviar" title="Enviar">➤</button>
+    </footer>
+  </main>
+
+  <!-- Panel de configuración -->
+  <dialog id="config">
+    <h2>Configuración</h2>
+    <label>
+      Tu nombre
+      <input id="cfg-nombre" type="text" placeholder="¿Cómo debo llamarte?">
+    </label>
+    <label>
+      Tratamiento
+      <select id="cfg-trato">
+        <option value="señor">Señor</option>
+        <option value="señora">Señora</option>
+        <option value="jefe">Jefe</option>
+        <option value="">(solo el nombre)</option>
+      </select>
+    </label>
+    <label>
+      Voz de Jarvis
+      <select id="cfg-voz"></select>
+    </label>
+    <label>
+      Clave API de Claude (opcional, activa el modo IA)
+      <input id="cfg-apikey" type="password" placeholder="sk-ant-…">
+    </label>
+    <p class="nota">La clave se guarda solo en este navegador (localStorage). Sin clave, Jarvis responde con sus comandos integrados. Escribe «ayuda» para verlos.</p>
+    <div class="acciones">
+      <button id="cfg-guardar">Guardar</button>
+      <button id="cfg-cerrar">Cerrar</button>
+    </div>
+  </dialog>
+
+  <script src="jarvis.js"></script>
+</body>
+</html>
