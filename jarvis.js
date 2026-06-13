@@ -365,7 +365,9 @@ async function preguntarIA(texto) {
             resultados.push({ type: "tool_result", tool_use_id: bloque.id, content: `Error: ${e.message}`, is_error: true });
           }
         }
-        messages.push({ role: "user", content: resultados });
+        // Sin tool_use de cliente no se puede enviar content: [] (la API lo
+        // rechaza); se reenvía tal cual, como en pause_turn
+        if (resultados.length) messages.push({ role: "user", content: resultados });
         continue;
       }
 

@@ -122,8 +122,14 @@ const SKILLS = [
       return `Clima en ${lugar.name}, ${lugar.country}: ${desc}, ${Math.round(c.temperature_2m)}°C (sensación de ${Math.round(c.apparent_temperature)}°C), humedad ${c.relative_humidity_2m}%, viento ${Math.round(c.wind_speed_10m)} km/h.`;
     },
     local: [
+      // «clima en Lima», «qué tiempo hace en Lima», «temperatura de Cusco»
       {
-        patron: /(?:clima|tiempo|temperatura)(?:\s+(?:en|de|para))?\s+([a-záéíóúñü\s]+)/i,
+        patron: /(?:clima|tiempo|temperatura)(?:\s+\S+)?\s+(?:en|de|para)\s+([a-záéíóúñü\s]+)/i,
+        args: (m) => ({ ciudad: m[1].trim() }),
+      },
+      // «clima Lima» (sin preposición)
+      {
+        patron: /(?:clima|temperatura)\s+([a-záéíóúñü\s]+)/i,
         args: (m) => ({ ciudad: m[1].trim() }),
       },
     ],
