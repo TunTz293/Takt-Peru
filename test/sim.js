@@ -32,11 +32,13 @@ function makeEl(id) {
 }
 
 const els = {};
-const IDS = ["chat","entrada","btn-mic","btn-enviar","reactor","estado","config","btn-config",
+const IDS = ["chat","entrada","btn-enviar","fallback","rain","reactor","estado","config","btn-config",
   "cfg-nombre","cfg-trato","cfg-voz","cfg-apikey","cfg-googleclient","cfg-guardar","cfg-cerrar",
   "cfg-google-conectar","cfg-google-estado","cfg-msclient","cfg-ms-conectar","cfg-ms-estado","skills-bar"];
 for (const id of IDS) els[id] = makeEl(id);
 
+els["rain"].getContext = () => ({ fillRect(){}, fillText(){}, set fillStyle(v){}, set font(v){} });
+els["fallback"].hidden = true;
 global.document = {
   querySelector(sel){ const el = els[sel.replace(/^#/, "")]; if (!el) throw new Error("Selector no stubeado: " + sel); return el; },
   createElement(tag){ return makeEl(tag); },
@@ -57,6 +59,7 @@ global.speechSynthesis = {
 global.SpeechSynthesisUtterance = class { constructor(t){ this.text = t; } };
 global.navigator = { serviceWorker: { register: async () => ({}) } };
 global.location = { origin: "http://localhost:8000", pathname: "/" };
+window.innerWidth = 390; window.innerHeight = 844;
 window.msal = {
   PublicClientApplication: class {
     constructor(cfg){ this.cfg = cfg; }

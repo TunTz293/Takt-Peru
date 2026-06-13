@@ -1,6 +1,8 @@
 # J.A.R.V.I.S. — Asistente Personal conectado a Claude
 
-Un asistente de voz estilo Iron Man, en español, hecho con HTML, CSS y JavaScript puro. No necesita instalación ni servidor: funciona directamente en el navegador, **conectado a Claude** y con un sistema de **skills** que la IA puede usar por sí misma.
+Un asistente de **voz** en español con estética **Matrix** (verde sobre negro, lluvia digital), hecho con HTML, CSS y JavaScript puro. No necesita instalación ni servidor: funciona directamente en el navegador, **conectado a Claude** y con un sistema de **skills** que la IA puede usar por sí misma.
+
+La interfaz es minimalista y orientada a la voz: solo el **núcleo central** (púlsalo y habla) y un único **icono de opciones** (⚙) arriba a la derecha. En dispositivos sin reconocimiento de voz (iPhone/Safari) aparece automáticamente un campo de texto de respaldo.
 
 ## Cómo usarlo
 

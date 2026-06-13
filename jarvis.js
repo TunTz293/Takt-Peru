@@ -9,8 +9,8 @@ const $ = (sel) => document.querySelector(sel);
 
 const chat = $("#chat");
 const entrada = $("#entrada");
-const btnMic = $("#btn-mic");
 const btnEnviar = $("#btn-enviar");
+const fallback = $("#fallback");
 const reactor = $("#reactor");
 const estado = $("#estado");
 const dlgConfig = $("#config");
@@ -51,29 +51,36 @@ function agregarMensaje(texto, quien) {
   chat.scrollTop = chat.scrollHeight;
 }
 
-function pintarSkills() {
-  const barra = $("#skills-bar");
-  barra.innerHTML = "";
-  for (const s of SKILLS) {
-    const chip = document.createElement("span");
-    chip.className = "skill-chip";
-    chip.textContent = s.etiqueta;
-    chip.title = s.description;
-    barra.appendChild(chip);
-  }
-  const busqueda = document.createElement("span");
-  busqueda.className = "skill-chip " + (cfg.apiKey ? "" : "ia-off");
-  busqueda.textContent = "Búsqueda web";
-  busqueda.title = "Claude busca en internet por ti (requiere conexión a Claude)";
-  barra.appendChild(busqueda);
+// Lluvia digital estilo Matrix en el canvas de fondo
+function iniciarLluvia() {
+  const canvas = $("#rain");
+  if (!canvas || !canvas.getContext) return;
+  const ctx = canvas.getContext("2d");
+  const glifos = "アイウエオカキクケコサシスセソタチツテトナニヌネノ0123456789:.=*+JARVIS".split("");
+  let cols, gotas, paso = 16;
 
-  const ia = document.createElement("span");
-  ia.className = "skill-chip " + (cfg.apiKey ? "ia-on" : "ia-off");
-  ia.textContent = cfg.apiKey ? "IA Claude ✓" : "IA Claude (sin clave)";
-  ia.title = cfg.apiKey
-    ? "Conectado a Claude: puede razonar y usar todas las skills por sí mismo"
-    : "Configura tu clave API (⚙) para conectar Jarvis a Claude";
-  barra.appendChild(ia);
+  function dimensionar() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    cols = Math.floor(canvas.width / paso);
+    gotas = Array(cols).fill(0).map(() => Math.random() * -canvas.height);
+  }
+  dimensionar();
+  window.addEventListener("resize", dimensionar);
+
+  setInterval(() => {
+    ctx.fillStyle = "rgba(0, 3, 0, 0.08)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.font = paso + "px monospace";
+    for (let i = 0; i < cols; i++) {
+      const g = glifos[Math.floor(Math.random() * glifos.length)];
+      const x = i * paso, y = gotas[i] * paso;
+      ctx.fillStyle = Math.random() > 0.96 ? "#d6ffe0" : "#00ff41";
+      ctx.fillText(g, x, y);
+      if (y > canvas.height && Math.random() > 0.975) gotas[i] = 0;
+      gotas[i]++;
+    }
+  }, 60);
 }
 
 // ---------- Voz (síntesis) ----------
@@ -122,19 +129,14 @@ if (Reconocedor) {
   rec.interimResults = false;
   rec.maxAlternatives = 1;
 
-  rec.onstart = () => {
-    btnMic.classList.add("activo");
-    setEstado("listening", "Escuchando");
-  };
+  rec.onstart = () => setEstado("listening", "Escuchando");
   rec.onend = () => {
-    btnMic.classList.remove("activo");
     if (!reactor.classList.contains("thinking")) setEstado("idle", "En espera");
   };
   rec.onerror = (e) => {
-    btnMic.classList.remove("activo");
     setEstado("idle", "En espera");
     if (e.error === "not-allowed") {
-      agregarMensaje("⚠ Necesito permiso para usar el micrófono.", "jarvis");
+      agregarMensaje("Necesito permiso para usar el micrófono.", "jarvis");
     }
   };
   rec.onresult = (e) => {
@@ -142,17 +144,22 @@ if (Reconocedor) {
     procesarEntrada(texto);
   };
 } else {
-  btnMic.disabled = true;
-  btnMic.title = "Tu navegador no soporta reconocimiento de voz (usa Chrome o Edge)";
+  // Sin reconocimiento de voz (p. ej. iPhone/Safari): mostrar entrada de texto
+  fallback.hidden = false;
 }
 
-btnMic.addEventListener("click", () => {
-  if (!rec) return;
+// El núcleo es el botón para hablar (voice-first). Si no hay voz, enfoca el texto.
+reactor.addEventListener("click", () => {
   speechSynthesis.cancel();
-  try { rec.start(); } catch { rec.stop(); }
+  if (rec) {
+    try { rec.start(); } catch { rec.stop(); }
+  } else {
+    fallback.hidden = false;
+    entrada.focus();
+  }
 });
 
-// ---------- Entrada por texto ----------
+// ---------- Entrada por texto (respaldo) ----------
 btnEnviar.addEventListener("click", enviarTexto);
 entrada.addEventListener("keydown", (e) => { if (e.key === "Enter") enviarTexto(); });
 
@@ -417,7 +424,6 @@ $("#cfg-guardar").addEventListener("click", () => {
   cfg.msClientId = $("#cfg-msclient").value.trim();
   cfg.voz = $("#cfg-voz").value;
   esperandoNombre = !cfg.nombre;
-  pintarSkills();
   dlgConfig.close();
   responder(`Configuración actualizada, ${tratamiento()}.${cfg.apiKey ? " Conexión a Claude activa." : ""}`);
 });
@@ -457,11 +463,11 @@ window.addEventListener("load", () => {
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   }
-  pintarSkills();
+  iniciarLluvia();
   if (esperandoNombre) {
-    agregarMensaje("Sistemas en línea. Soy JARVIS, tu asistente personal. Antes de empezar: ¿cómo debo llamarte?", "jarvis");
+    agregarMensaje("Sistemas en línea. ¿Cómo debo llamarte?", "jarvis");
   } else {
-    agregarMensaje(`${saludoPorHora()}, ${tratamiento()}. Skills cargadas y sistemas operativos. ¿En qué puedo servirte?`, "jarvis");
+    agregarMensaje(`${saludoPorHora()}, ${tratamiento()}. Pulsa el núcleo y habla.`, "jarvis");
   }
   // La síntesis de voz requiere interacción previa del usuario en la mayoría
   // de navegadores, por eso el saludo inicial solo se muestra en pantalla.
