@@ -2,11 +2,10 @@ name: Monitor Prestamype Oportunidades
 
 on:
   schedule:
-    # Cada hora de lunes a viernes, entre 8am y 8pm (hora Perú = UTC-5)
-    # UTC equivalente: 13:00 - 01:00 (siguiente día)
+    # Cada hora, lunes a viernes, 8am–8pm hora Perú (UTC-5 → UTC 13:00–01:00)
     - cron: "0 13-23 * * 1-5"
     - cron: "0 0-1 * * 2-6"
-  workflow_dispatch:  # Permite ejecución manual desde GitHub
+  workflow_dispatch:
 
 jobs:
   check-opportunities:
@@ -21,11 +20,14 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install requests
+        run: |
+          pip install playwright
+          playwright install chromium --with-deps
 
       - name: Run monitor
         env:
-          PRESTAMYPE_TOKEN: ${{ secrets.PRESTAMYPE_TOKEN }}
+          PRESTAMYPE_EMAIL: ${{ secrets.PRESTAMYPE_EMAIL }}
+          PRESTAMYPE_PASSWORD: ${{ secrets.PRESTAMYPE_PASSWORD }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           ALERT_EMAIL: warcaya.armar@gmail.com
