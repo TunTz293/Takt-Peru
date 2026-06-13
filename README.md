@@ -38,24 +38,45 @@ El micrófono requiere HTTPS, y GitHub Pages ya lo incluye — por eso es la for
 Pulsa ⚙ y pega tu clave API de Claude (consíguela en [platform.claude.com](https://platform.claude.com)). Con la conexión activa:
 
 - Jarvis le pasa tu pregunta a **Claude (claude-opus-4-8)** con su personalidad y tu nombre.
-- Claude **decide solo qué skills usar** (tool use): puede consultar el clima real, calcular, convertir monedas, poner temporizadores, guardar recordatorios o abrir webs, y combinar varias skills en una misma petición ("¿cuánto son 50 dólares en soles y qué clima hace en Cusco?").
+- Claude **busca en internet por sí mismo** (web search de Anthropic, server-side): «busca quién ganó anoche», «¿a cuánto está el dólar hoy según los diarios?».
+- Claude **decide solo qué skills usar** (tool use) y las combina: «crea la tarea de renovar el SOAT para el viernes y agéndame un recordatorio ese día a las 9» → crea la tarea en Google Tasks **y** el evento asociado en Calendar con aviso.
+- Conoce tu fecha, hora y zona horaria: entiende «mañana», «el viernes a las 3», «en dos horas».
 - La clave se guarda **solo en tu navegador** (localStorage); nunca se sube a ningún lado.
 
 Sin clave, Jarvis sigue funcionando: cada skill tiene comandos de voz directos.
+
+## Conexión a Google (Tasks y Calendar)
+
+Para que Jarvis maneje tus tareas y tu calendario reales necesita un **ID de cliente OAuth** tuyo (gratis, 5 minutos, una sola vez):
+
+1. Entra a [console.cloud.google.com](https://console.cloud.google.com) y crea un proyecto (p. ej. "Jarvis").
+2. En **APIs y servicios → Biblioteca**, habilita **Google Tasks API** y **Google Calendar API**.
+3. En **APIs y servicios → Pantalla de consentimiento OAuth**: tipo *Externo*, completa el nombre, y en **Usuarios de prueba** agrega tu propio correo.
+4. En **APIs y servicios → Credenciales → Crear credenciales → ID de cliente de OAuth**: tipo *Aplicación web*, y en **Orígenes de JavaScript autorizados** agrega:
+   - `https://<tu-usuario>.github.io` (para usarlo publicado)
+   - `http://localhost:8000` (para pruebas locales)
+5. Copia el ID de cliente (`xxxx.apps.googleusercontent.com`), pégalo en ⚙ y pulsa **«Conectar Google»**. Autoriza con tu cuenta y listo.
+
+El permiso solicitado es solo sobre tus tareas y eventos del calendario. El token de acceso vive en la sesión del navegador; nada pasa por servidores de terceros: tu navegador habla directo con Google.
 
 ## Skills disponibles
 
 | Skill | Qué hace | Comando directo (sin IA) |
 |---|---|---|
+| 🔎 Búsqueda web | Claude busca en internet y te responde | — (requiere IA) |
+| ✅ Google Tasks | Crear, listar y completar tareas reales | «agrega tarea…» / «mis tareas» / «completa la tarea…» |
+| 📅 Google Calendar | Crear eventos y recordatorios con aviso | «mi agenda» (crear requiere IA para entender fechas) |
 | 🕐 Hora y fecha | Fecha y hora locales | «¿qué hora es?» |
 | 🌤 Clima | Clima real de cualquier ciudad (Open-Meteo) | «clima en Lima» |
 | 🧮 Calculadora | Aritmética precisa | «cuánto es 150 * 1.18» |
 | 💱 Monedas | Tipos de cambio reales del día | «convierte 100 dólares a soles» |
 | ⏱ Temporizador | Cuenta regresiva con aviso por voz | «temporizador de 5 minutos» |
-| 📝 Recordatorios | Guardar, listar y borrar notas | «recuérdame…» / «mis recordatorios» |
+| 📝 Notas rápidas | Notas sin fecha, locales | «recuérdame…» / «mis recordatorios» |
 | 🌐 Web | Google, YouTube, Wikipedia, URLs | «busca…», «pon [canción]» |
 
 Además: chistes, «llámame [nombre]», «limpia el chat», «ayuda».
+
+**¿Recordatorios?** Si tienen fecha u hora («recuérdame mañana a las 8…»), Jarvis crea un evento en Google Calendar con notificación — así te avisa el teléfono aunque la app esté cerrada. Si son notas sueltas, las guarda localmente.
 
 ### Añadir una skill nueva
 

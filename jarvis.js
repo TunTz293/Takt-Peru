@@ -25,6 +25,8 @@ const cfg = {
   set apiKey(v) { localStorage.setItem("jarvis_apikey", v); },
   get voz() { return localStorage.getItem("jarvis_voz") || ""; },
   set voz(v) { localStorage.setItem("jarvis_voz", v); },
+  get googleClientId() { return localStorage.getItem("jarvis_google_client_id") || ""; },
+  set googleClientId(v) { localStorage.setItem("jarvis_google_client_id", v); },
 };
 
 // Forma de dirigirse al usuario: "señor Warcaya", "jefe", o solo el nombre
@@ -57,6 +59,12 @@ function pintarSkills() {
     chip.title = s.description;
     barra.appendChild(chip);
   }
+  const busqueda = document.createElement("span");
+  busqueda.className = "skill-chip " + (cfg.apiKey ? "" : "ia-off");
+  busqueda.textContent = "Búsqueda web";
+  busqueda.title = "Claude busca en internet por ti (requiere conexión a Claude)";
+  barra.appendChild(busqueda);
+
   const ia = document.createElement("span");
   ia.className = "skill-chip " + (cfg.apiKey ? "ia-on" : "ia-off");
   ia.textContent = cfg.apiKey ? "IA Claude ✓" : "IA Claude (sin clave)";
@@ -210,17 +218,19 @@ async function manejarComando(texto) {
   if (/\b(ayuda|qué puedes hacer|que puedes hacer|comandos|skills)\b/.test(t)) {
     return responder(
       "Mis skills disponibles:\n" +
-      "• Hora y fecha — «¿qué hora es?»\n" +
+      "• Búsqueda web — «busca quién ganó el clásico» (con IA)\n" +
+      "• Google Tasks — «agrega tarea comprar repuestos» / «mis tareas»\n" +
+      "• Google Calendar — «agenda reunión mañana a las 3» / «mi agenda»\n" +
+      "• Recordatorios — «recuérdame mañana a las 8 tomar la pastilla»\n" +
       "• Clima real — «clima en Lima»\n" +
       "• Calculadora — «cuánto es 150 * 1.18»\n" +
       "• Monedas — «convierte 100 dólares a soles»\n" +
       "• Temporizador — «temporizador de 5 minutos»\n" +
-      "• Recordatorios — «recuérdame…» / «mis recordatorios»\n" +
-      "• Web — «busca…», «pon [canción]», «wikipedia sobre…»\n" +
+      "• Web — «pon [canción]», «wikipedia sobre…»\n" +
       "• Chistes, «llámame [nombre]», «limpia el chat»\n" +
       (cfg.apiKey
-        ? "Además estoy conectado a Claude: pregúntame lo que sea y decidiré yo mismo qué skill usar."
-        : "Conéctame a Claude con tu clave API (⚙) y podré razonar y combinar estas skills por mi cuenta.")
+        ? "Estoy conectado a Claude: pídeme lo que sea y combinaré las skills necesarias."
+        : "Conéctame a Claude con tu clave API (⚙) para que pueda razonar, buscar en la web y combinar skills.")
     );
   }
 
@@ -261,15 +271,32 @@ const historia = []; // memoria de conversación entre turnos (solo texto)
 const MAX_VUELTAS = 8; // límite del bucle agéntico
 
 function promptSistema() {
+  const ahora = new Date();
+  const fechaHora = ahora.toLocaleString("es-PE", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Lima";
   return (
     `Eres JARVIS, el asistente personal de ${cfg.nombre || "tu usuario"}. ` +
     `Dirígete siempre a él/ella como «${tratamiento()}», con el tono elegante, leal y ` +
-    `ligeramente irónico del JARVIS de Iron Man. Responde siempre en español. ` +
-    `Tienes skills (herramientas) reales: clima, calculadora, conversor de monedas, ` +
-    `temporizador, recordatorios, hora/fecha y apertura de webs. Úsalas siempre que la ` +
-    `pregunta lo requiera en lugar de estimar de memoria (p. ej. usa obtener_clima para el ` +
-    `clima real, calculadora para aritmética, hora_fecha para la hora actual). ` +
-    `Tus respuestas se leen en voz alta: sé breve (2 a 4 frases), claro y sin formato markdown.`
+    `ligeramente irónico del JARVIS de Iron Man. Responde siempre en español.\n\n` +
+    `Fecha y hora actuales: ${fechaHora} (zona horaria ${tz}). Usa esto para calcular ` +
+    `fechas relativas como «mañana», «el viernes» o «en dos horas».\n\n` +
+    `Tienes skills reales — úsalas en lugar de estimar de memoria:\n` +
+    `- web_search: busca en internet cuando el usuario pida buscar algo o pregunte por ` +
+    `información actual (noticias, precios, resultados, datos recientes). Responde tú con ` +
+    `lo encontrado; usa abrir_web solo si además quiere abrir la página.\n` +
+    `- google_tasks: tareas y pendientes del usuario (su lista real de Google Tasks).\n` +
+    `- google_calendar: eventos, citas y recordatorios con fecha/hora. Para un recordatorio ` +
+    `crea un evento con aviso_minutos. Si una tarea tiene fecha y hora concretas, crea la ` +
+    `tarea en google_tasks Y un evento asociado en google_calendar mencionando la tarea en ` +
+    `la descripción.\n` +
+    `- recordatorios: solo notas rápidas sin fecha.\n` +
+    `- obtener_clima, calculadora, conversor_moneda, temporizador, hora_fecha, abrir_web.\n\n` +
+    `Confirma cada acción realizada con sus datos clave (qué, cuándo). ` +
+    `Tus respuestas se leen en voz alta: sé breve (2 a 4 frases), claro, sin formato markdown ` +
+    `y sin leer URLs largas en voz alta.`
   );
 }
 
@@ -287,7 +314,8 @@ async function llamarClaude(messages) {
       max_tokens: 16000,
       thinking: { type: "adaptive" },
       system: promptSistema(),
-      tools: HERRAMIENTAS_CLAUDE,
+      // Skills del navegador + búsqueda web server-side de Anthropic
+      tools: [...HERRAMIENTAS_CLAUDE, { type: "web_search_20260209", name: "web_search" }],
       messages,
     }),
   });
@@ -318,6 +346,12 @@ async function preguntarIA(texto) {
 
       // Reenviar el contenido completo preserva los bloques thinking/tool_use
       messages.push({ role: "assistant", content: data.content });
+
+      // La búsqueda web server-side puede pausar el turno: se reenvía y continúa
+      if (data.stop_reason === "pause_turn") {
+        setEstado("thinking", "Buscando en la web");
+        continue;
+      }
 
       if (data.stop_reason === "tool_use") {
         const resultados = [];
@@ -361,6 +395,7 @@ $("#btn-config").addEventListener("click", () => {
   $("#cfg-nombre").value = cfg.nombre;
   $("#cfg-trato").value = cfg.trato;
   $("#cfg-apikey").value = cfg.apiKey;
+  $("#cfg-googleclient").value = cfg.googleClientId;
   cargarVoces();
   dlgConfig.showModal();
 });
@@ -369,11 +404,26 @@ $("#cfg-guardar").addEventListener("click", () => {
   cfg.nombre = $("#cfg-nombre").value.trim();
   cfg.trato = $("#cfg-trato").value;
   cfg.apiKey = $("#cfg-apikey").value.trim();
+  cfg.googleClientId = $("#cfg-googleclient").value.trim();
   cfg.voz = $("#cfg-voz").value;
   esperandoNombre = !cfg.nombre;
   pintarSkills();
   dlgConfig.close();
   responder(`Configuración actualizada, ${tratamiento()}.${cfg.apiKey ? " Conexión a Claude activa." : ""}`);
+});
+
+// Conexión con Google (debe ocurrir con un clic del usuario para que
+// el navegador permita la ventana de autorización)
+$("#cfg-google-conectar").addEventListener("click", async () => {
+  cfg.googleClientId = $("#cfg-googleclient").value.trim();
+  const aviso = $("#cfg-google-estado");
+  aviso.textContent = "Conectando…";
+  try {
+    await googleAuth.conectar();
+    aviso.textContent = "✓ Google conectado (Tasks y Calendar)";
+  } catch (e) {
+    aviso.textContent = "✗ " + e.message;
+  }
 });
 
 $("#cfg-cerrar").addEventListener("click", () => dlgConfig.close());

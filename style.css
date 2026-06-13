@@ -295,6 +295,29 @@ dialog#config::backdrop { background: rgba(0, 0, 0, 0.7); }
   line-height: 1.4;
 }
 
+.fila-google {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.9rem;
+}
+
+#cfg-google-conectar {
+  padding: 0.45rem 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--azul-suave);
+  background: var(--panel);
+  color: var(--azul);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+#cfg-google-conectar:hover { box-shadow: 0 0 10px var(--azul-suave); }
+
+#cfg-google-estado {
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
 #config .acciones {
   display: flex;
   gap: 0.6rem;

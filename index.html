@@ -64,16 +64,25 @@
       <select id="cfg-voz"></select>
     </label>
     <label>
-      Clave API de Claude (opcional, activa el modo IA)
+      Clave API de Claude (activa la IA y la búsqueda web)
       <input id="cfg-apikey" type="password" placeholder="sk-ant-…">
     </label>
-    <p class="nota">La clave se guarda solo en este navegador (localStorage). Sin clave, Jarvis responde con sus comandos integrados. Escribe «ayuda» para verlos.</p>
+    <label>
+      ID de cliente OAuth de Google (activa Tasks y Calendar)
+      <input id="cfg-googleclient" type="text" placeholder="xxxx.apps.googleusercontent.com">
+    </label>
+    <div class="fila-google">
+      <button id="cfg-google-conectar" type="button">Conectar Google</button>
+      <span id="cfg-google-estado"></span>
+    </div>
+    <p class="nota">Las claves se guardan solo en este navegador (localStorage). El ID de cliente de Google se crea gratis en Google Cloud Console — la guía está en el README. Sin claves, Jarvis funciona con sus comandos integrados («ayuda» para verlos).</p>
     <div class="acciones">
       <button id="cfg-guardar">Guardar</button>
       <button id="cfg-cerrar">Cerrar</button>
     </div>
   </dialog>
 
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="skills.js"></script>
   <script src="jarvis.js"></script>
 </body>
