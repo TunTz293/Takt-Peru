@@ -59,13 +59,32 @@ Para que Jarvis maneje tus tareas y tu calendario reales necesita un **ID de cli
 
 El permiso solicitado es solo sobre tus tareas y eventos del calendario. El token de acceso vive en la sesión del navegador; nada pasa por servidores de terceros: tu navegador habla directo con Google.
 
+## Conexión a Microsoft (To Do del trabajo)
+
+Si tus tareas laborales viven en Microsoft To Do (Outlook/Teams), Jarvis también puede leerlas, crearlas y completarlas. Necesita un **ID de aplicación** de Azure (gratis, una sola vez):
+
+1. Entra a [portal.azure.com](https://portal.azure.com) → **Microsoft Entra ID → Registros de aplicaciones → Nuevo registro**.
+2. Nombre: "Jarvis". En **Tipos de cuenta compatibles** elige la opción que incluya tu cuenta (cuentas de cualquier organización + personales es lo más flexible).
+3. En **Plataformas → Agregar plataforma → Aplicación de página única (SPA)** y agrega como URI de redirección:
+   - `https://<tu-usuario>.github.io/Takt-Peru/`
+   - `http://localhost:8000/` (para pruebas locales)
+4. En **Permisos de API → Agregar permiso → Microsoft Graph → Delegados**, agrega **Tasks.ReadWrite**.
+5. Copia el **ID de aplicación (cliente)** de la página Información general, pégalo en ⚙ y pulsa **«Conectar Microsoft»**.
+
+> Si tu cuenta es de empresa, puede que el administrador de tu organización tenga que aprobar el permiso la primera vez (Azure te lo indicará al iniciar sesión).
+
+## Cómo se unifica todo
+
+- **Tareas**: viven en dos sistemas — **Google Tasks** (personales) y **Microsoft To Do** (trabajo). Al pedir «mis tareas», Jarvis consulta **ambos** y te presenta una sola lista marcando el origen. Al crear, decide por contexto: «agrega tarea de trabajo enviar el informe» → Microsoft; «agrega tarea comprar pan» → Google. Con IA, Claude infiere el origen por el contenido (y pregunta si es ambiguo).
+- **Calendario**: **todo evento o recordatorio va siempre a Google Calendar**, tu calendario unificado — incluso si nace de una tarea de Microsoft. En ese caso, la descripción del evento indica la tarea y su origen (p. ej. «Asociado a la tarea X de Microsoft To Do»).
+
 ## Skills disponibles
 
 | Skill | Qué hace | Comando directo (sin IA) |
 |---|---|---|
 | 🔎 Búsqueda web | Claude busca en internet y te responde | — (requiere IA) |
-| ✅ Google Tasks | Crear, listar y completar tareas reales | «agrega tarea…» / «mis tareas» / «completa la tarea…» |
-| 📅 Google Calendar | Crear eventos y recordatorios con aviso | «mi agenda» (crear requiere IA para entender fechas) |
+| ✅ Tareas unificadas | Google Tasks + Microsoft To Do en una sola lista | «agrega tarea…» (Google) / «agrega tarea de trabajo…» (Microsoft) / «mis tareas» / «completa la tarea…» |
+| 📅 Google Calendar | Calendario unificado: eventos y recordatorios con aviso | «mi agenda» (crear requiere IA para entender fechas) |
 | 🕐 Hora y fecha | Fecha y hora locales | «¿qué hora es?» |
 | 🌤 Clima | Clima real de cualquier ciudad (Open-Meteo) | «clima en Lima» |
 | 🧮 Calculadora | Aritmética precisa | «cuánto es 150 * 1.18» |

@@ -75,7 +75,15 @@
       <button id="cfg-google-conectar" type="button">Conectar Google</button>
       <span id="cfg-google-estado"></span>
     </div>
-    <p class="nota">Las claves se guardan solo en este navegador (localStorage). El ID de cliente de Google se crea gratis en Google Cloud Console — la guía está en el README. Sin claves, Jarvis funciona con sus comandos integrados («ayuda» para verlos).</p>
+    <label>
+      ID de aplicación de Microsoft (activa To Do del trabajo)
+      <input id="cfg-msclient" type="text" placeholder="00000000-0000-0000-0000-000000000000">
+    </label>
+    <div class="fila-google">
+      <button id="cfg-ms-conectar" type="button">Conectar Microsoft</button>
+      <span id="cfg-ms-estado"></span>
+    </div>
+    <p class="nota">Las claves se guardan solo en este navegador (localStorage). Los ID de Google (Cloud Console) y Microsoft (Azure/Entra) se crean gratis — las guías están en el README. Sin claves, Jarvis funciona con sus comandos integrados («ayuda» para verlos).</p>
     <div class="acciones">
       <button id="cfg-guardar">Guardar</button>
       <button id="cfg-cerrar">Cerrar</button>
@@ -83,6 +91,7 @@
   </dialog>
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3/lib/msal-browser.min.js" async defer></script>
   <script src="skills.js"></script>
   <script src="jarvis.js"></script>
 </body>

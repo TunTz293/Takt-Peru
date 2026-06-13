@@ -27,6 +27,8 @@ const cfg = {
   set voz(v) { localStorage.setItem("jarvis_voz", v); },
   get googleClientId() { return localStorage.getItem("jarvis_google_client_id") || ""; },
   set googleClientId(v) { localStorage.setItem("jarvis_google_client_id", v); },
+  get msClientId() { return localStorage.getItem("jarvis_ms_client_id") || ""; },
+  set msClientId(v) { localStorage.setItem("jarvis_ms_client_id", v); },
 };
 
 // Forma de dirigirse al usuario: "señor Warcaya", "jefe", o solo el nombre
@@ -219,8 +221,8 @@ async function manejarComando(texto) {
     return responder(
       "Mis skills disponibles:\n" +
       "• Búsqueda web — «busca quién ganó el clásico» (con IA)\n" +
-      "• Google Tasks — «agrega tarea comprar repuestos» / «mis tareas»\n" +
-      "• Google Calendar — «agenda reunión mañana a las 3» / «mi agenda»\n" +
+      "• Tareas unificadas — «agrega tarea comprar repuestos» (Google), «agrega tarea de trabajo enviar informe» (Microsoft To Do), «mis tareas» (ambas)\n" +
+      "• Google Calendar (calendario unificado) — «agenda reunión mañana a las 3» / «mi agenda»\n" +
       "• Recordatorios — «recuérdame mañana a las 8 tomar la pastilla»\n" +
       "• Clima real — «clima en Lima»\n" +
       "• Calculadora — «cuánto es 150 * 1.18»\n" +
@@ -287,11 +289,15 @@ function promptSistema() {
     `- web_search: busca en internet cuando el usuario pida buscar algo o pregunte por ` +
     `información actual (noticias, precios, resultados, datos recientes). Responde tú con ` +
     `lo encontrado; usa abrir_web solo si además quiere abrir la página.\n` +
-    `- google_tasks: tareas y pendientes del usuario (su lista real de Google Tasks).\n` +
-    `- google_calendar: eventos, citas y recordatorios con fecha/hora. Para un recordatorio ` +
-    `crea un evento con aviso_minutos. Si una tarea tiene fecha y hora concretas, crea la ` +
-    `tarea en google_tasks Y un evento asociado en google_calendar mencionando la tarea en ` +
-    `la descripción.\n` +
+    `- tareas: los pendientes del usuario viven en DOS sistemas: Google Tasks (personal) y ` +
+    `Microsoft To Do (trabajo). Al listar consulta ambos (origen 'ambos'). Al crear, elige el ` +
+    `origen según el contexto: 'microsoft' si es laboral, 'google' si es personal; pregunta ` +
+    `solo si es realmente ambiguo.\n` +
+    `- google_calendar: el CALENDARIO UNIFICADO. Todos los eventos, citas y recordatorios van ` +
+    `SIEMPRE aquí, sin importar si la tarea asociada es de Google o de Microsoft. Para un ` +
+    `recordatorio crea un evento con aviso_minutos. Si una tarea tiene fecha y hora concretas, ` +
+    `crea la tarea en su sistema Y el evento asociado en google_calendar, mencionando en la ` +
+    `descripción la tarea y su origen (p. ej. «Asociado a la tarea X de Microsoft To Do»).\n` +
     `- recordatorios: solo notas rápidas sin fecha.\n` +
     `- obtener_clima, calculadora, conversor_moneda, temporizador, hora_fecha, abrir_web.\n\n` +
     `Confirma cada acción realizada con sus datos clave (qué, cuándo). ` +
@@ -398,6 +404,7 @@ $("#btn-config").addEventListener("click", () => {
   $("#cfg-trato").value = cfg.trato;
   $("#cfg-apikey").value = cfg.apiKey;
   $("#cfg-googleclient").value = cfg.googleClientId;
+  $("#cfg-msclient").value = cfg.msClientId;
   cargarVoces();
   dlgConfig.showModal();
 });
@@ -407,6 +414,7 @@ $("#cfg-guardar").addEventListener("click", () => {
   cfg.trato = $("#cfg-trato").value;
   cfg.apiKey = $("#cfg-apikey").value.trim();
   cfg.googleClientId = $("#cfg-googleclient").value.trim();
+  cfg.msClientId = $("#cfg-msclient").value.trim();
   cfg.voz = $("#cfg-voz").value;
   esperandoNombre = !cfg.nombre;
   pintarSkills();
@@ -414,8 +422,8 @@ $("#cfg-guardar").addEventListener("click", () => {
   responder(`Configuración actualizada, ${tratamiento()}.${cfg.apiKey ? " Conexión a Claude activa." : ""}`);
 });
 
-// Conexión con Google (debe ocurrir con un clic del usuario para que
-// el navegador permita la ventana de autorización)
+// Conexiones con Google y Microsoft (deben ocurrir con un clic del usuario
+// para que el navegador permita la ventana de autorización)
 $("#cfg-google-conectar").addEventListener("click", async () => {
   cfg.googleClientId = $("#cfg-googleclient").value.trim();
   const aviso = $("#cfg-google-estado");
@@ -423,6 +431,19 @@ $("#cfg-google-conectar").addEventListener("click", async () => {
   try {
     await googleAuth.conectar();
     aviso.textContent = "✓ Google conectado (Tasks y Calendar)";
+  } catch (e) {
+    aviso.textContent = "✗ " + e.message;
+  }
+});
+
+$("#cfg-ms-conectar").addEventListener("click", async () => {
+  cfg.msClientId = $("#cfg-msclient").value.trim();
+  msAuth.app = null; // por si el ID de aplicación cambió
+  const aviso = $("#cfg-ms-estado");
+  aviso.textContent = "Conectando…";
+  try {
+    await msAuth.conectar(true);
+    aviso.textContent = "✓ Microsoft conectado (To Do)";
   } catch (e) {
     aviso.textContent = "✗ " + e.message;
   }

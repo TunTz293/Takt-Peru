@@ -2,7 +2,7 @@
    y funcione sin conexión (las skills que usan internet — clima, monedas,
    modo IA — siguen necesitando red). */
 
-const CACHE = "jarvis-v3";
+const CACHE = "jarvis-v4";
 const ARCHIVOS = [
   "./",
   "./index.html",

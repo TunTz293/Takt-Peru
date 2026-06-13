@@ -302,7 +302,7 @@ dialog#config::backdrop { background: rgba(0, 0, 0, 0.7); }
   margin-bottom: 0.9rem;
 }
 
-#cfg-google-conectar {
+#cfg-google-conectar, #cfg-ms-conectar {
   padding: 0.45rem 1rem;
   border-radius: 8px;
   border: 1px solid var(--azul-suave);
@@ -311,9 +311,9 @@ dialog#config::backdrop { background: rgba(0, 0, 0, 0.7); }
   cursor: pointer;
   font-size: 0.85rem;
 }
-#cfg-google-conectar:hover { box-shadow: 0 0 10px var(--azul-suave); }
+#cfg-google-conectar:hover, #cfg-ms-conectar:hover { box-shadow: 0 0 10px var(--azul-suave); }
 
-#cfg-google-estado {
+#cfg-google-estado, #cfg-ms-estado {
   font-size: 0.75rem;
   opacity: 0.8;
 }

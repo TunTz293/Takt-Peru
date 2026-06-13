@@ -34,7 +34,7 @@ function makeEl(id) {
 const els = {};
 const IDS = ["chat","entrada","btn-mic","btn-enviar","reactor","estado","config","btn-config",
   "cfg-nombre","cfg-trato","cfg-voz","cfg-apikey","cfg-googleclient","cfg-guardar","cfg-cerrar",
-  "cfg-google-conectar","cfg-google-estado","skills-bar"];
+  "cfg-google-conectar","cfg-google-estado","cfg-msclient","cfg-ms-conectar","cfg-ms-estado","skills-bar"];
 for (const id of IDS) els[id] = makeEl(id);
 
 global.document = {
@@ -56,6 +56,16 @@ global.speechSynthesis = {
 };
 global.SpeechSynthesisUtterance = class { constructor(t){ this.text = t; } };
 global.navigator = { serviceWorker: { register: async () => ({}) } };
+global.location = { origin: "http://localhost:8000", pathname: "/" };
+window.msal = {
+  PublicClientApplication: class {
+    constructor(cfg){ this.cfg = cfg; }
+    async initialize(){}
+    getAllAccounts(){ return [{ username: "tony@empresa.com" }]; }
+    async acquireTokenSilent(){ return { accessToken: "mstok" }; }
+    async loginPopup(){ return { accessToken: "mstok" }; }
+  },
+};
 
 // ---------- Registro de lo observado ----------
 const registro = { hablado: [], ventanas: [], peticionesClaude: [], errores: [] };
@@ -106,6 +116,14 @@ global.fetch = async (url, opts = {}) => {
   }
   if (url.includes("open.er-api.com")) {
     return ok({ result: "success", rates: { PEN: 3.74, EUR: 0.92 } });
+  }
+  if (url.includes("graph.microsoft.com")) {
+    const auth = opts.headers?.Authorization;
+    if (!auth) return ok({ error: { message: "sin token" } }, 401);
+    if (url.endsWith("/me/todo/lists")) return ok({ value: [{ id: "L1", wellknownListName: "defaultList", displayName: "Tareas" }] });
+    if (opts.method === "POST") return ok({ title: JSON.parse(opts.body).title, id: "m9" });
+    if (opts.method === "PATCH") return ok({}, 200);
+    return ok({ value: [{ id: "m1", title: "enviar informe mensual", status: "notStarted", dueDateTime: { dateTime: "2026-06-20T00:00:00.0000000", timeZone: "UTC" } }] });
   }
   if (url.includes("tasks.googleapis.com")) {
     const auth = opts.headers?.Authorization;
@@ -162,7 +180,7 @@ function ultimaRespuesta() {
   });
   await caso("ayuda lista las skills", async () => {
     procesar("ayuda"); await esperar();
-    assert.match(ultimaRespuesta(), /Google Tasks/);
+    assert.match(ultimaRespuesta(), /Tareas unificadas/);
   });
 
   // ===== 3. Skills locales sin clave API =====
@@ -182,20 +200,33 @@ function ultimaRespuesta() {
     procesar("qué hora es"); await esperar();
     assert.match(ultimaRespuesta(), /Hora|hora/);
   });
-  await caso("google_tasks sin conectar da error claro", async () => {
+  await caso("tareas sin ningún sistema conectado da error claro", async () => {
     procesar("agrega tarea comprar repuestos"); await esperar();
-    assert.match(ultimaRespuesta(), /Conectar Google|ID de cliente/);
+    assert.match(ultimaRespuesta(), /conectados|⚙/);
   });
 
-  // ===== 4. Google conectado (token simulado) =====
+  // ===== 4. Google y Microsoft conectados (tokens simulados) =====
+  localStorage.setItem("jarvis_google_client_id", "gcli.apps.googleusercontent.com");
+  localStorage.setItem("jarvis_ms_client_id", "11111111-2222-3333-4444-555555555555");
   sessionStorage.setItem("jarvis_google_token", JSON.stringify({ valor: "tok", expira: Date.now() + 3600e3 }));
-  await caso("google_tasks crear (local, con token)", async () => {
+
+  await caso("crear tarea personal va a Google", async () => {
     procesar("agrega tarea comprar repuestos"); await esperar();
-    assert.match(ultimaRespuesta(), /comprar repuestos/);
+    assert.match(ultimaRespuesta(), /Google Tasks.*comprar repuestos/s);
   });
-  await caso("google_tasks listar", async () => {
+  await caso("crear tarea de trabajo va a Microsoft To Do", async () => {
+    procesar("agrega tarea de trabajo enviar informe mensual"); await esperar();
+    assert.match(ultimaRespuesta(), /Microsoft To Do.*enviar informe mensual/s);
+  });
+  await caso("«mis tareas» unifica Google + Microsoft", async () => {
     procesar("mis tareas"); await esperar();
-    assert.match(ultimaRespuesta(), /comprar repuestos.*2026-06-19/s);
+    const r = ultimaRespuesta();
+    assert.match(r, /\[Google\] comprar repuestos/, "falta la tarea de Google: " + r);
+    assert.match(r, /\[Microsoft\] enviar informe mensual/, "falta la tarea de Microsoft: " + r);
+  });
+  await caso("completar busca en ambos sistemas (encuentra en Microsoft)", async () => {
+    procesar("completa la tarea enviar informe"); await esperar();
+    assert.match(ultimaRespuesta(), /Microsoft.*enviar informe mensual/s);
   });
   await caso("google_calendar listar agenda", async () => {
     procesar("mi agenda"); await esperar();
@@ -212,7 +243,7 @@ function ultimaRespuesta() {
         stop_reason: "tool_use",
         content: [
           { type: "thinking", thinking: "", signature: "sig1" },
-          { type: "tool_use", id: "tu_1", name: "google_tasks", input: { accion: "crear", titulo: "renovar SOAT", fecha_limite: "2026-06-19" } },
+          { type: "tool_use", id: "tu_1", name: "tareas", input: { accion: "crear", origen: "google", titulo: "renovar SOAT", fecha_limite: "2026-06-19" } },
           { type: "tool_use", id: "tu_2", name: "google_calendar", input: { accion: "crear_evento", titulo: "Renovar SOAT", inicio: "2026-06-19T09:00:00", aviso_minutos: 30, descripcion: "Asociado a la tarea renovar SOAT" } },
         ],
       },

@@ -87,6 +87,132 @@ function isoLocal(d) {
 
 const ZONA_HORARIA = Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Lima";
 
+// ---------- Autenticación con Microsoft (To Do, vía Microsoft Graph) ----------
+// Usa MSAL: el usuario configura el ID de aplicación de Azure en ⚙ y pulsa
+// «Conectar Microsoft». Tras el primer inicio de sesión, los tokens se
+// renuevan en silencio.
+const msAuth = {
+  get clientId() { return localStorage.getItem("jarvis_ms_client_id") || ""; },
+  app: null,
+  SCOPES: ["Tasks.ReadWrite"],
+
+  async instancia() {
+    if (!this.clientId) throw new Error("Configura tu ID de aplicación de Microsoft en ⚙ y pulsa «Conectar Microsoft»");
+    if (!window.msal?.PublicClientApplication) throw new Error("La librería de Microsoft no cargó; revisa tu conexión a internet");
+    if (!this.app) {
+      this.app = new window.msal.PublicClientApplication({
+        auth: {
+          clientId: this.clientId,
+          authority: "https://login.microsoftonline.com/common",
+          redirectUri: location.origin + location.pathname,
+        },
+        cache: { cacheLocation: "localStorage" },
+      });
+      await this.app.initialize();
+    }
+    return this.app;
+  },
+
+  get configurado() { return !!this.clientId; },
+
+  // interactivo=true solo desde el botón de ⚙ (requiere clic del usuario)
+  async conectar(interactivo = false) {
+    const app = await this.instancia();
+    const cuenta = app.getAllAccounts()[0];
+    if (cuenta) {
+      try {
+        return (await app.acquireTokenSilent({ scopes: this.SCOPES, account: cuenta })).accessToken;
+      } catch { /* token vencido: requiere popup */ }
+    }
+    if (!interactivo) throw new Error("Tu sesión de Microsoft expiró o no existe: pulsa «Conectar Microsoft» en ⚙");
+    return (await app.loginPopup({ scopes: this.SCOPES })).accessToken;
+  },
+
+  async fetch(url, opciones = {}) {
+    const token = await this.conectar();
+    const res = await fetch(url, {
+      ...opciones,
+      headers: { ...(opciones.headers || {}), Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e?.error?.message || `Error ${res.status} de Microsoft`);
+    }
+    return res.status === 204 ? {} : res.json();
+  },
+};
+
+// ---------- Backends de tareas (se unifican en la skill «tareas») ----------
+const GRAPH = "https://graph.microsoft.com/v1.0";
+const TASKS_GOOGLE = "https://tasks.googleapis.com/tasks/v1/lists/@default/tasks";
+
+const tareasBackend = {
+  google: {
+    nombre: "Google",
+    get configurado() { return !!googleAuth.clientId; },
+    async crear({ titulo, notas, fecha_limite }) {
+      const cuerpo = { title: titulo };
+      if (notas) cuerpo.notes = notas;
+      if (fecha_limite) cuerpo.due = `${fecha_limite}T00:00:00.000Z`;
+      const t = await googleAuth.fetch(TASKS_GOOGLE, { method: "POST", body: JSON.stringify(cuerpo) });
+      return t.title;
+    },
+    async listar() {
+      const data = await googleAuth.fetch(`${TASKS_GOOGLE}?showCompleted=false&maxResults=20`);
+      return (data.items || []).map((t) => ({
+        titulo: t.title, vence: t.due ? t.due.slice(0, 10) : null, notas: t.notes || null,
+      }));
+    },
+    async completar(titulo) {
+      const data = await googleAuth.fetch(`${TASKS_GOOGLE}?showCompleted=false&maxResults=50`);
+      const t = (data.items || []).find((x) => x.title.toLowerCase().includes(titulo.toLowerCase()));
+      if (!t) return null;
+      await googleAuth.fetch(`${TASKS_GOOGLE}/${t.id}`, { method: "PATCH", body: JSON.stringify({ status: "completed" }) });
+      return t.title;
+    },
+  },
+
+  microsoft: {
+    nombre: "Microsoft",
+    _listaId: null,
+    get configurado() { return msAuth.configurado; },
+    async listaId() {
+      if (this._listaId) return this._listaId;
+      const data = await msAuth.fetch(`${GRAPH}/me/todo/lists`);
+      const lista = (data.value || []).find((l) => l.wellknownListName === "defaultList") || data.value?.[0];
+      if (!lista) throw new Error("No encontré listas de tareas en tu cuenta de Microsoft");
+      return (this._listaId = lista.id);
+    },
+    async crear({ titulo, notas, fecha_limite }) {
+      const id = await this.listaId();
+      const cuerpo = { title: titulo };
+      if (notas) cuerpo.body = { content: notas, contentType: "text" };
+      if (fecha_limite) cuerpo.dueDateTime = { dateTime: `${fecha_limite}T00:00:00`, timeZone: ZONA_HORARIA };
+      const t = await msAuth.fetch(`${GRAPH}/me/todo/lists/${id}/tasks`, { method: "POST", body: JSON.stringify(cuerpo) });
+      return t.title;
+    },
+    async listar() {
+      const id = await this.listaId();
+      const filtro = encodeURIComponent("status ne 'completed'");
+      const data = await msAuth.fetch(`${GRAPH}/me/todo/lists/${id}/tasks?$filter=${filtro}&$top=20`);
+      return (data.value || []).map((t) => ({
+        titulo: t.title,
+        vence: t.dueDateTime ? t.dueDateTime.dateTime.slice(0, 10) : null,
+        notas: t.body?.content?.trim() || null,
+      }));
+    },
+    async completar(titulo) {
+      const id = await this.listaId();
+      const filtro = encodeURIComponent("status ne 'completed'");
+      const data = await msAuth.fetch(`${GRAPH}/me/todo/lists/${id}/tasks?$filter=${filtro}&$top=50`);
+      const t = (data.value || []).find((x) => x.title.toLowerCase().includes(titulo.toLowerCase()));
+      if (!t) return null;
+      await msAuth.fetch(`${GRAPH}/me/todo/lists/${id}/tasks/${t.id}`, { method: "PATCH", body: JSON.stringify({ status: "completed" }) });
+      return t.title;
+    },
+  },
+};
+
 const SKILLS = [
   // ---------------- Hora y fecha ----------------
   {
@@ -271,56 +397,84 @@ const SKILLS = [
     ],
   },
 
-  // ---------------- Google Tasks ----------------
+  // ---------------- Tareas (Google Tasks + Microsoft To Do, unificadas) ----------------
   {
-    name: "google_tasks",
-    etiqueta: "Google Tasks",
+    name: "tareas",
+    etiqueta: "Tareas G+M",
     description:
-      "Gestiona las tareas del usuario en Google Tasks (su lista real, sincronizada con su cuenta). " +
-      "Acciones: 'crear' (requiere titulo; opcional notas y fecha_limite), 'listar' (tareas pendientes), " +
-      "'completar' (marca como hecha la tarea cuyo título coincida con titulo). " +
+      "Gestiona las tareas del usuario, que viven en DOS sistemas: Google Tasks (personales) y " +
+      "Microsoft To Do (su entorno de trabajo). Acciones: " +
+      "'crear' (requiere titulo y origen: usa 'microsoft' si la tarea es laboral —trabajo, oficina, " +
+      "jefe, informes, reuniones de trabajo— y 'google' si es personal; ante la duda pregunta al usuario); " +
+      "'listar' (por defecto origen 'ambos': consulta los dos sistemas y presenta una lista unificada); " +
+      "'completar' (busca la tarea por título en ambos sistemas y la marca como hecha). " +
       "Úsala siempre que el usuario hable de tareas, pendientes o cosas por hacer.",
     input_schema: {
       type: "object",
       properties: {
         accion: { type: "string", enum: ["crear", "listar", "completar"], description: "Operación a realizar" },
+        origen: { type: "string", enum: ["google", "microsoft", "ambos"], description: "Sistema de tareas: 'microsoft' = trabajo, 'google' = personal, 'ambos' = solo para listar (por defecto)" },
         titulo: { type: "string", description: "Título de la tarea (para crear o completar)" },
         notas: { type: "string", description: "Detalles adicionales de la tarea (opcional)" },
         fecha_limite: { type: "string", description: "Fecha límite en formato YYYY-MM-DD (opcional)" },
       },
       required: ["accion"],
     },
-    async run({ accion, titulo, notas, fecha_limite }) {
-      const BASE = "https://tasks.googleapis.com/tasks/v1/lists/@default/tasks";
+    async run({ accion, origen, titulo, notas, fecha_limite }) {
+      const disponibles = Object.entries(tareasBackend).filter(([, b]) => b.configurado);
+      if (!disponibles.length) {
+        throw new Error("No hay sistemas de tareas conectados: configura Google y/o Microsoft en ⚙");
+      }
+
       if (accion === "crear") {
         if (!titulo) throw new Error("Falta el título de la tarea");
-        const cuerpo = { title: titulo };
-        if (notas) cuerpo.notes = notas;
-        if (fecha_limite) cuerpo.due = `${fecha_limite}T00:00:00.000Z`;
-        const t = await googleAuth.fetch(BASE, { method: "POST", body: JSON.stringify(cuerpo) });
-        return `Tarea creada en Google Tasks: «${t.title}»${fecha_limite ? ` con fecha límite ${fecha_limite}` : ""}.`;
+        const clave = origen && origen !== "ambos" ? origen : "google";
+        const backend = tareasBackend[clave];
+        if (!backend) throw new Error(`Origen desconocido: ${origen}`);
+        if (!backend.configurado) throw new Error(`${backend.nombre} no está conectado: configúralo en ⚙ o usa el otro origen`);
+        const creado = await backend.crear({ titulo, notas, fecha_limite });
+        return `Tarea creada en ${backend.nombre === "Microsoft" ? "Microsoft To Do (trabajo)" : "Google Tasks"}: «${creado}»` +
+          (fecha_limite ? ` con fecha límite ${fecha_limite}` : "") + ".";
       }
+
       if (accion === "listar") {
-        const data = await googleAuth.fetch(`${BASE}?showCompleted=false&maxResults=20`);
-        const items = data.items || [];
-        if (!items.length) return "No hay tareas pendientes en Google Tasks.";
-        return `Tareas pendientes (${items.length}):\n` + items.map((t, i) =>
-          `${i + 1}. ${t.title}${t.due ? ` (vence ${t.due.slice(0, 10)})` : ""}${t.notes ? ` — ${t.notes}` : ""}`
-        ).join("\n");
+        const claves = origen && origen !== "ambos" ? [origen] : disponibles.map(([k]) => k);
+        const secciones = [];
+        let total = 0;
+        for (const clave of claves) {
+          const backend = tareasBackend[clave];
+          if (!backend?.configurado) continue;
+          try {
+            const items = await backend.listar();
+            total += items.length;
+            if (items.length) {
+              secciones.push(items.map((t) =>
+                `• [${backend.nombre}] ${t.titulo}${t.vence ? ` (vence ${t.vence})` : ""}${t.notas ? ` — ${t.notas}` : ""}`
+              ).join("\n"));
+            }
+          } catch (e) {
+            secciones.push(`(No pude leer ${backend.nombre}: ${e.message})`);
+          }
+        }
+        if (!total && !secciones.length) return "No hay tareas pendientes en ningún sistema.";
+        return `Tareas pendientes (${total}):\n` + secciones.join("\n");
       }
+
       if (accion === "completar") {
         if (!titulo) throw new Error("Indica el título de la tarea a completar");
-        const data = await googleAuth.fetch(`${BASE}?showCompleted=false&maxResults=50`);
-        const t = (data.items || []).find((x) => x.title.toLowerCase().includes(titulo.toLowerCase()));
-        if (!t) throw new Error(`No encontré una tarea pendiente que contenga «${titulo}»`);
-        await googleAuth.fetch(`${BASE}/${t.id}`, { method: "PATCH", body: JSON.stringify({ status: "completed" }) });
-        return `Tarea completada: «${t.title}». Bien hecho.`;
+        for (const [, backend] of disponibles) {
+          const hecho = await backend.completar(titulo);
+          if (hecho) return `Tarea completada en ${backend.nombre}: «${hecho}». Bien hecho.`;
+        }
+        throw new Error(`No encontré una tarea pendiente que contenga «${titulo}» en ${disponibles.map(([, b]) => b.nombre).join(" ni ")}`);
       }
+
       throw new Error(`Acción desconocida: ${accion}`);
     },
     local: [
-      { patron: /(?:agrega|añade|anade|crea)(?:r)?\s+(?:una\s+)?tarea\s+(?:de\s+|para\s+)?(.+)/i, args: (m) => ({ accion: "crear", titulo: m[1].trim() }) },
-      { patron: /(?:mis tareas|tareas pendientes|qué tengo que hacer|que tengo que hacer)/i, args: () => ({ accion: "listar" }) },
+      { patron: /(?:agrega|añade|anade|crea)(?:r)?\s+(?:una\s+)?tarea\s+(?:de(?:l)?\s+trabajo|laboral)\s+(?:de\s+|para\s+)?(.+)/i, args: (m) => ({ accion: "crear", origen: "microsoft", titulo: m[1].trim() }) },
+      { patron: /(?:agrega|añade|anade|crea)(?:r)?\s+(?:una\s+)?tarea\s+(?:de\s+|para\s+)?(.+)/i, args: (m) => ({ accion: "crear", origen: "google", titulo: m[1].trim() }) },
+      { patron: /(?:mis tareas|tareas pendientes|qué tengo que hacer|que tengo que hacer)/i, args: () => ({ accion: "listar", origen: "ambos" }) },
       { patron: /(?:completa|marca|termina)(?:r)?\s+(?:la\s+)?tarea\s+(?:de\s+)?(.+)/i, args: (m) => ({ accion: "completar", titulo: m[1].trim() }) },
     ],
   },
@@ -334,7 +488,9 @@ const SKILLS = [
       "Acciones: 'crear_evento' (requiere titulo e inicio; opcional duracion_minutos, descripcion, aviso_minutos) " +
       "y 'listar' (próximos eventos). Úsala para citas, reuniones, eventos y RECORDATORIOS CON FECHA/HORA " +
       "(crea un evento con aviso_minutos para que el teléfono notifique al usuario). " +
-      "Si el evento nace de una tarea de google_tasks, menciona la tarea en la descripcion para asociarlos.",
+      "TODOS los eventos van SIEMPRE a este calendario de Google: es el calendario unificado del usuario, " +
+      "incluso cuando el evento nace de una tarea de Microsoft To Do. Si el evento está asociado a una tarea " +
+      "(de Google o de Microsoft), menciona la tarea y su origen en la descripcion.",
     input_schema: {
       type: "object",
       properties: {
