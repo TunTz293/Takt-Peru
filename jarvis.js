@@ -380,6 +380,10 @@ $("#cfg-cerrar").addEventListener("click", () => dlgConfig.close());
 
 // ---------- Arranque ----------
 window.addEventListener("load", () => {
+  // PWA: permite instalar Jarvis como app y abrirlo sin conexión
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
   pintarSkills();
   if (esperandoNombre) {
     agregarMensaje("Sistemas en línea. Soy JARVIS, tu asistente personal. Antes de empezar: ¿cómo debo llamarte?", "jarvis");

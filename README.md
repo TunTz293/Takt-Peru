@@ -12,6 +12,27 @@ Un asistente de voz estilo Iron Man, en español, hecho con HTML, CSS y JavaScri
 > Consejo: para que el micrófono funcione sin problemas, sírvelo en local con
 > `python3 -m http.server` y abre `http://localhost:8000`, o publícalo en GitHub Pages.
 
+## Usarlo en el smartphone (PWA)
+
+Jarvis es una **PWA**: se instala como una app en tu teléfono, con su propio ícono, pantalla completa y arranque sin conexión.
+
+**1. Publica el sitio con GitHub Pages (una sola vez):**
+
+1. En GitHub abre el repositorio → **Settings → Pages**.
+2. En *Build and deployment*, elige **Deploy from a branch**.
+3. Selecciona la rama (p. ej. `main` después de fusionar, o directamente esta rama) y la carpeta `/ (root)` → **Save**.
+4. En uno o dos minutos tu Jarvis estará en línea en:
+   `https://<tu-usuario>.github.io/Takt-Peru/`
+
+**2. Instálalo en el teléfono:**
+
+- **Android (Chrome):** abre la URL → menú ⋮ → **«Agregar a pantalla de inicio»** / **«Instalar app»**. Acepta el permiso del micrófono la primera vez.
+- **iPhone (Safari):** abre la URL → botón Compartir → **«Añadir a pantalla de inicio»**.
+
+> Nota iPhone: iOS no soporta el reconocimiento de voz del navegador, así que ahí Jarvis se usa escribiendo (la voz de respuesta sí funciona). En Android funciona todo, incluido hablarle.
+
+El micrófono requiere HTTPS, y GitHub Pages ya lo incluye — por eso es la forma recomendada de usarlo en el celular.
+
 ## Conexión a Claude
 
 Pulsa ⚙ y pega tu clave API de Claude (consíguela en [platform.claude.com](https://platform.claude.com)). Con la conexión activa:
