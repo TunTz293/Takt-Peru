@@ -1,0 +1,32 @@
+name: Monitor Prestamype Oportunidades
+
+on:
+  schedule:
+    # Cada hora de lunes a viernes, entre 8am y 8pm (hora Perú = UTC-5)
+    # UTC equivalente: 13:00 - 01:00 (siguiente día)
+    - cron: "0 13-23 * * 1-5"
+    - cron: "0 0-1 * * 2-6"
+  workflow_dispatch:  # Permite ejecución manual desde GitHub
+
+jobs:
+  check-opportunities:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run monitor
+        env:
+          PRESTAMYPE_TOKEN: ${{ secrets.PRESTAMYPE_TOKEN }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          ALERT_EMAIL: warcaya.armar@gmail.com
+        run: python scripts/monitor_prestamype.py
